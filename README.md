@@ -11,3 +11,7 @@ its a nice fun project, helps you deal with tasks under size constraints... i en
 # How to run this?
 
 take the uri from dist/ and paste it in your browser!
+
+# Preview
+
+<img width="1520" height="826" alt="contrast" src="https://github.com/user-attachments/assets/fbce98c2-6b15-43f8-826b-d75bc264ae06" />
