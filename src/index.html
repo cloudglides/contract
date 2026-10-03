@@ -1,0 +1,256 @@
+<body>
+  <div class="ship-main">
+    <div class="ship-body">
+      <div class="ship"></div>
+      <div class="lower-body-ship"></div>
+    </div>
+  </div>
+  <div class="popup"></div>
+  <style>
+    body {
+      background: #000;
+    }
+
+    .bullet {
+      position: fixed;
+      width: 4px;
+      height: 10px;
+      background: #fff;
+    }
+
+    .ship-main {
+      display: grid;
+      place-content: center;
+      height: 100vh;
+    }
+    .lower-body-ship {
+      height: 20px;
+      width: 40px;
+      margin-left: -10px;
+      background: #fff;
+    }
+
+    .ship {
+      height: 20px;
+      width: 20px;
+      background: #fff;
+    }
+
+    .asteroid {
+      position: fixed;
+      background: #bbc;
+      clip-path: polygon(50% 0, 100% 32%, 88% 100%, 18% 92%);
+    }
+
+    .popup {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-content: center;
+      white-space: pre;
+      font: 700 32px sans-serif;
+      color: #f44;
+    }
+  </style>
+  <script>
+    const bullets = [];
+    const asteroids = [];
+
+    let lastShotAt = 0;
+
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "Space") {
+        event.preventDefault();
+
+        if (performance.now() - lastShotAt > 500) {
+          lastShotAt = performance.now();
+          shoot();
+        }
+      }
+
+      if (event.key === "r" && over) restart();
+
+      if (event.key.startsWith("Arrow")) {
+        event.preventDefault();
+        held.add(event.key);
+      }
+    });
+
+    function restart() {
+      over = false;
+      lives = 3;
+      touching = false;
+      popup.style.display = "none";
+      held.clear();
+
+      for (const a of asteroids.splice(0)) a.element.remove();
+      for (const b of bullets.splice(0)) b.element.remove();
+    }
+
+    function spawnAsteroid() {
+      const size = 18 + Math.random() * 24;
+      const asteroid = document.createElement("div");
+
+      asteroid.className = "asteroid";
+      asteroid.style.cssText = `width:${size}px;height:${size}px`;
+      document.body.appendChild(asteroid);
+
+      asteroids.push({
+        element: asteroid,
+        x: Math.random() * innerWidth,
+        y: -size,
+        r: size / 2,
+        speed: 160 + Math.random() * 260,
+        spin: (Math.random() - 0.5) * 180,
+        angle: Math.random() * 360,
+        hp: HITS,
+      });
+    }
+
+    function shoot() {
+      const rect = ship.getBoundingClientRect();
+      const bullet = document.createElement("div");
+
+      bullet.className = "bullet";
+      document.body.appendChild(bullet);
+
+      bullets.push({
+        element: bullet,
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      });
+    }
+
+    const ship = document.querySelector(".ship-body");
+    const popup = document.querySelector(".popup");
+    const homeRect = ship.getBoundingClientRect();
+
+    const minX = -homeRect.left, maxX = innerWidth - homeRect.right;
+    const minY = -homeRect.top, maxY = innerHeight - homeRect.bottom;
+
+    let x = 0;
+    let y = 0;
+    let lastTime = 0;
+    let touching = false;
+    let lives = 3;
+    let over = false;
+    let popTimer;
+
+    const held = new Set();
+    const SPEED = 320;
+    const HITS = 3;
+
+    document.addEventListener("keyup", (event) => {
+      held.delete(event.key);
+    });
+
+    function animate(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      const step = SPEED * dt;
+
+      if (over) {
+        requestAnimationFrame(animate);
+        return;
+      }
+
+      if (held.has("ArrowLeft")) x -= step;
+      if (held.has("ArrowRight")) x += step;
+      if (held.has("ArrowUp")) y -= step;
+      if (held.has("ArrowDown")) y += step;
+
+      x = Math.min(Math.max(x, minX), maxX);
+      y = Math.min(Math.max(y, minY), maxY);
+
+      ship.style.transform = `translate(${x}px, ${y}px)`;
+
+      const shipX = homeRect.left + 10 + x;
+      const shipY = homeRect.top + 10 + y;
+
+      for (let i = asteroids.length - 1; i >= 0; i--) {
+        const asteroid = asteroids[i];
+
+        const s = asteroid.element.style;
+
+        asteroid.y += asteroid.speed * dt;
+        asteroid.angle += asteroid.spin * dt;
+
+        s.left = asteroid.x + "px";
+        s.top = asteroid.y + "px";
+        s.transform = `rotate(${asteroid.angle}deg)`;
+
+        const near = asteroid.r + 14;
+
+        if (
+          Math.abs(asteroid.x + asteroid.r - shipX) < near &&
+          Math.abs(asteroid.y + asteroid.r - shipY) < near &&
+          !touching
+        ) {
+          touching = true;
+          popup.style.display = "grid";
+
+          if (--lives <= 0) {
+            over = true;
+            popup.textContent = "GAME OVER\npress R";
+          } else {
+            popup.textContent = lives;
+            clearTimeout(popTimer);
+            popTimer = setTimeout(() => {
+              popup.style.display = "none";
+              touching = false;
+            }, 700);
+          }
+        }
+
+        if (asteroid.y > innerHeight + asteroid.r) {
+          asteroid.element.remove();
+          asteroids.splice(i, 1);
+        }
+      }
+
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+
+        bullet.y -= 520 * dt;
+
+        const b = bullet.element.style;
+        b.left = bullet.x + "px";
+        b.top = bullet.y + "px";
+
+        let hit = false;
+
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+          const a = asteroids[j];
+
+          const br = a.r + 4;
+
+          if (
+            Math.abs(a.x + a.r - bullet.x) < br &&
+            Math.abs(a.y + a.r - bullet.y) < br
+          ) {
+            a.hp--;
+            a.element.style.opacity = a.hp / HITS;
+
+            if (a.hp <= 0) {
+              a.element.remove();
+              asteroids.splice(j, 1);
+            }
+
+            hit = true;
+            break;
+          }
+        }
+
+        if (hit || bullet.y < -10) {
+          bullet.element.remove();
+          bullets.splice(i, 1);
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+    setInterval(spawnAsteroid, 320);
+  </script>
+</body>
